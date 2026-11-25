@@ -1,0 +1,17 @@
+{
+  "cli": {
+    "appVersionSource": "remote",
+    "promptToConfigurePushNotifications": false
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_APP_VARIANT": "preview"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    }
+  }
+}
