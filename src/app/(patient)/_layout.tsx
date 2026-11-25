@@ -32,6 +32,7 @@ export default function PatientTabsLayout() {
       <Tabs.Screen name="ai-health" options={{ title: 'AI Health', tabBarIcon: ({ color, size }) => <Feather name="activity" size={size} color={String(color)} /> }} />
       <Tabs.Screen name="health" options={{ title: 'My Health', tabBarIcon: ({ color, size }) => <Feather name="heart" size={size} color={String(color)} /> }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={String(color)} /> }} />
+      <Tabs.Screen name="hospitals" options={{ href: null }} />
     </Tabs>
   );
 }

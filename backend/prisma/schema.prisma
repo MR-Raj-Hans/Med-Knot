@@ -1,0 +1,461 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  LOCKED
+  DISABLED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum HospitalStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum DirectoryVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AvailabilitySlotStatus {
+  AVAILABLE
+  BOOKED
+  BLOCKED
+}
+
+enum ConsultationMode {
+  IN_PERSON
+  ONLINE_VIDEO
+}
+
+enum AppointmentStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum AppointmentEvent {
+  BOOKED
+  CANCELLED
+  RESCHEDULED
+  COMPLETED
+}
+
+enum ClinicalRecordType {
+  PATIENT_NOTE
+  CONSULTATION_NOTE
+}
+
+enum ClinicalRecordOrigin {
+  PATIENT_ENTERED
+  CLINICIAN_AUTHORED
+}
+
+enum ClinicalRecordStatus {
+  DRAFT
+  RELEASED
+  WITHDRAWN
+}
+
+enum PrescriptionStatus {
+  DRAFT
+  RELEASED
+}
+
+model User {
+  id               String                      @id @default(uuid()) @db.Uuid
+  email            String                      @unique @db.VarChar(320)
+  phone            String?                     @unique @db.VarChar(20)
+  fullName         String                      @map("full_name") @db.VarChar(120)
+  passwordHash     String                      @map("password_hash") @db.VarChar(255)
+  status           UserStatus                  @default(PENDING_VERIFICATION)
+  termsAcceptedAt  DateTime                    @map("terms_accepted_at") @db.Timestamptz(3)
+  createdAt        DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  patientProfile   PatientProfile?
+  roles            UserRole[]
+  sessions         RefreshSession[]
+  verifications    EmailVerificationChallenge[]
+  passwordResets   PasswordResetToken[]
+  auditLogs        AuditLog[]                   @relation("AuditActor")
+  memberships      HospitalMembership[]
+  appointmentEvents AppointmentStatusHistory[]
+  clinicalRecordsAuthored ClinicalRecord[] @relation("ClinicalRecordAuthor")
+  prescriptionsAuthored  Prescription[]   @relation("PrescriptionAuthor")
+  doctorProfiles   DoctorProfile[]
+
+  @@index([status, createdAt])
+  @@map("users")
+}
+
+model PatientProfile {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+  clinicalRecords ClinicalRecord[]
+  prescriptions   Prescription[]
+
+  @@map("patient_profiles")
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique @db.VarChar(64)
+  description String           @db.VarChar(160)
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique @db.VarChar(96)
+  description String           @db.VarChar(160)
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  roleId     String    @map("role_id") @db.Uuid
+  hospitalId String?   @map("hospital_id") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  hospital   Hospital? @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, hospitalId])
+  @@index([roleId, hospitalId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Hospital {
+  id                 String                       @id @default(uuid()) @db.Uuid
+  name               String                       @db.VarChar(160)
+  slug               String                       @unique @db.VarChar(96)
+  addressLine1       String?                      @map("address_line1") @db.VarChar(200)
+  city               String?                      @db.VarChar(100)
+  region             String?                      @db.VarChar(100)
+  postalCode         String?                      @map("postal_code") @db.VarChar(24)
+  country            String?                      @db.VarChar(100)
+  phone              String?                      @db.VarChar(24)
+  latitude           Float?
+  longitude          Float?
+  status             HospitalStatus               @default(SUSPENDED)
+  verificationStatus DirectoryVerificationStatus  @default(PENDING) @map("verification_status")
+  verifiedAt         DateTime?                    @map("verified_at") @db.Timestamptz(3)
+  createdAt          DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  userRoles          UserRole[]
+  memberships        HospitalMembership[]
+  departments        Department[]
+  doctorProfiles     DoctorProfile[]
+  clinicalRecords    ClinicalRecord[]
+  prescriptions      Prescription[]
+
+  @@index([status, verificationStatus, city])
+  @@map("hospitals")
+}
+
+model Department {
+  id        String          @id @default(uuid()) @db.Uuid
+  hospitalId String         @map("hospital_id") @db.Uuid
+  name      String          @db.VarChar(120)
+  slug      String          @db.VarChar(96)
+  isActive  Boolean         @default(true) @map("is_active")
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  hospital  Hospital        @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  doctors   DoctorProfile[]
+
+  @@unique([hospitalId, slug])
+  @@index([hospitalId, isActive, name])
+  @@map("departments")
+}
+
+model Specialty {
+  id        String          @id @default(uuid()) @db.Uuid
+  name      String          @unique @db.VarChar(120)
+  slug      String          @unique @db.VarChar(96)
+  isActive  Boolean         @default(true) @map("is_active")
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  doctors   DoctorProfile[]
+
+  @@map("specialties")
+}
+
+model DoctorProfile {
+  id                   String                      @id @default(uuid()) @db.Uuid
+  userId               String                      @map("user_id") @db.Uuid
+  hospitalId           String                      @map("hospital_id") @db.Uuid
+  departmentId         String                      @map("department_id") @db.Uuid
+  specialtyId          String                      @map("specialty_id") @db.Uuid
+  licenseNumber        String                      @map("license_number") @db.VarChar(100)
+  biography            String?                     @db.VarChar(2000)
+  yearsExperience      Int?                        @map("years_experience")
+  consultationFeeMinor Int?                        @map("consultation_fee_minor")
+  currency             String?                     @db.Char(3)
+  onlineConsultation   Boolean                     @default(false) @map("online_consultation")
+  verificationStatus   DirectoryVerificationStatus @default(PENDING) @map("verification_status")
+  verifiedAt           DateTime?                   @map("verified_at") @db.Timestamptz(3)
+  createdAt            DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user                 User                        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  hospital             Hospital                    @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  department           Department                  @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  specialty            Specialty                   @relation(fields: [specialtyId], references: [id], onDelete: Restrict)
+  qualifications       DoctorQualification[]
+  availabilitySlots   DoctorAvailabilitySlot[]
+  appointments        Appointment[]
+
+  @@unique([userId, hospitalId])
+  @@unique([hospitalId, licenseNumber])
+  @@index([verificationStatus, specialtyId, hospitalId])
+  @@index([departmentId, verificationStatus])
+  @@map("doctor_profiles")
+}
+
+model DoctorQualification {
+  id               String        @id @default(uuid()) @db.Uuid
+  doctorProfileId  String        @map("doctor_profile_id") @db.Uuid
+  qualification    String        @db.VarChar(160)
+  institution      String        @db.VarChar(160)
+  yearCompleted    Int?          @map("year_completed")
+  displayOrder     Int           @default(0) @map("display_order")
+  doctorProfile    DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
+
+  @@index([doctorProfileId, displayOrder])
+  @@map("doctor_qualifications")
+}
+
+model DoctorAvailabilitySlot {
+  id              String               @id @default(uuid()) @db.Uuid
+  doctorProfileId String               @map("doctor_profile_id") @db.Uuid
+  startAt         DateTime             @map("start_at") @db.Timestamptz(3)
+  endAt           DateTime             @map("end_at") @db.Timestamptz(3)
+  timezone        String               @default("UTC") @db.VarChar(64)
+  status          AvailabilitySlotStatus @default(AVAILABLE)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  doctorProfile   DoctorProfile        @relation(fields: [doctorProfileId], references: [id], onDelete: Restrict)
+  appointments    Appointment[]     @relation("AppointmentSlotHistory")
+  activeAppointment Appointment?   @relation("ActiveAppointmentSlot")
+
+  @@unique([doctorProfileId, startAt])
+  @@index([doctorProfileId, status, startAt])
+  @@map("doctor_availability_slots")
+}
+
+model Appointment {
+  id                String            @id @default(uuid()) @db.Uuid
+  patientProfileId  String            @map("patient_profile_id") @db.Uuid
+  doctorProfileId   String            @map("doctor_profile_id") @db.Uuid
+  slotId            String            @map("slot_id") @db.Uuid
+  activeSlotId      String?           @unique @map("active_slot_id") @db.Uuid
+  idempotencyKey    String            @unique @map("idempotency_key") @db.Uuid
+  idempotencyHash   String            @map("idempotency_hash") @db.Char(64)
+  consultationMode  ConsultationMode  @map("consultation_mode")
+  status            AppointmentStatus @default(CONFIRMED)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  patientProfile    PatientProfile    @relation(fields: [patientProfileId], references: [id], onDelete: Restrict)
+  doctorProfile     DoctorProfile     @relation(fields: [doctorProfileId], references: [id], onDelete: Restrict)
+  slot              DoctorAvailabilitySlot @relation("AppointmentSlotHistory", fields: [slotId], references: [id], onDelete: Restrict)
+  activeSlot        DoctorAvailabilitySlot? @relation("ActiveAppointmentSlot", fields: [activeSlotId], references: [id], onDelete: Restrict)
+  history           AppointmentStatusHistory[]
+  clinicalRecords   ClinicalRecord[]
+  prescriptions     Prescription[]
+
+  @@index([patientProfileId, status, createdAt])
+  @@index([doctorProfileId, status, createdAt])
+  @@map("appointments")
+}
+
+model AppointmentStatusHistory {
+  id            String           @id @default(uuid()) @db.Uuid
+  appointmentId String           @map("appointment_id") @db.Uuid
+  actorId       String?          @map("actor_id") @db.Uuid
+  event         AppointmentEvent
+  fromStatus    AppointmentStatus? @map("from_status")
+  toStatus      AppointmentStatus @map("to_status")
+  fromSlotId    String?          @map("from_slot_id") @db.Uuid
+  toSlotId      String?          @map("to_slot_id") @db.Uuid
+  fromSlotStartAt DateTime?      @map("from_slot_start_at") @db.Timestamptz(3)
+  toSlotStartAt   DateTime?      @map("to_slot_start_at") @db.Timestamptz(3)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  appointment   Appointment      @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  actor         User?            @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([appointmentId, createdAt])
+  @@index([actorId, createdAt])
+  @@map("appointment_status_history")
+}
+
+model ClinicalRecord {
+  id                String               @id @default(uuid()) @db.Uuid
+  patientProfileId  String               @map("patient_profile_id") @db.Uuid
+  authorId          String               @map("author_id") @db.Uuid
+  hospitalId        String?              @map("hospital_id") @db.Uuid
+  appointmentId     String?              @map("appointment_id") @db.Uuid
+  type              ClinicalRecordType
+  origin            ClinicalRecordOrigin
+  status            ClinicalRecordStatus @default(DRAFT)
+  ciphertext        String               @db.Text
+  iv                String               @db.VarChar(24)
+  authTag            String              @map("auth_tag") @db.VarChar(32)
+  keyVersion         Int                 @default(1) @map("key_version")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  releasedAt         DateTime?           @map("released_at") @db.Timestamptz(3)
+  patientProfile     PatientProfile      @relation(fields: [patientProfileId], references: [id], onDelete: Restrict)
+  author             User                @relation("ClinicalRecordAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  hospital           Hospital?           @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  appointment        Appointment?        @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+
+  @@index([patientProfileId, status, createdAt])
+  @@index([authorId, hospitalId, createdAt])
+  @@unique([appointmentId])
+  @@map("clinical_records")
+}
+
+model Prescription {
+  id               String             @id @default(uuid()) @db.Uuid
+  patientProfileId String             @map("patient_profile_id") @db.Uuid
+  authorId         String             @map("author_id") @db.Uuid
+  hospitalId       String             @map("hospital_id") @db.Uuid
+  appointmentId    String             @map("appointment_id") @db.Uuid
+  status           PrescriptionStatus @default(DRAFT)
+  ciphertext       String             @db.Text
+  iv               String             @db.VarChar(24)
+  authTag           String             @map("auth_tag") @db.VarChar(32)
+  keyVersion        Int                @default(1) @map("key_version")
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  releasedAt        DateTime?          @map("released_at") @db.Timestamptz(3)
+  patientProfile    PatientProfile     @relation(fields: [patientProfileId], references: [id], onDelete: Restrict)
+  author            User               @relation("PrescriptionAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  hospital          Hospital           @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  appointment       Appointment        @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+
+  @@index([patientProfileId, status, createdAt])
+  @@index([authorId, hospitalId, createdAt])
+  @@index([appointmentId])
+  @@map("prescriptions")
+}
+
+model HospitalMembership {
+  userId     String           @map("user_id") @db.Uuid
+  hospitalId String           @map("hospital_id") @db.Uuid
+  status     MembershipStatus @default(INVITED)
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital   Hospital         @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@id([userId, hospitalId])
+  @@index([hospitalId, status])
+  @@map("hospital_memberships")
+}
+
+model RefreshSession {
+  id         String         @id @default(uuid()) @db.Uuid
+  userId     String         @map("user_id") @db.Uuid
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastUsedAt DateTime       @default(now()) @map("last_used_at") @db.Timestamptz(3)
+  revokedAt  DateTime?      @map("revoked_at") @db.Timestamptz(3)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokens     RefreshToken[]
+
+  @@index([userId, revokedAt])
+  @@map("refresh_sessions")
+}
+
+model RefreshToken {
+  id        String         @id @default(uuid()) @db.Uuid
+  sessionId String         @map("session_id") @db.Uuid
+  tokenHash String         @unique @map("token_hash") @db.Char(64)
+  expiresAt DateTime       @map("expires_at") @db.Timestamptz(3)
+  consumedAt DateTime?     @map("consumed_at") @db.Timestamptz(3)
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  session   RefreshSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, consumedAt, expiresAt])
+  @@map("refresh_tokens")
+}
+
+model EmailVerificationChallenge {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  codeHash  String    @map("code_hash") @db.Char(64)
+  attempts  Int       @default(0)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, consumedAt, expiresAt])
+  @@map("email_verification_challenges")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash") @db.Char(64)
+  attempts  Int       @default(0)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, consumedAt, expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String   @db.VarChar(96)
+  targetType String   @map("target_type") @db.VarChar(64)
+  targetId   String?  @map("target_id") @db.VarChar(96)
+  requestId  String?  @map("request_id") @db.VarChar(96)
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}

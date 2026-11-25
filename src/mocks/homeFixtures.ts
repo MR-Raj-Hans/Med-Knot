@@ -11,7 +11,7 @@ export const developmentHomeSummary: HomeSummary = {
     location: 'MedKnot Care · Room 204',
     status: 'confirmed',
   },
-  activePrescriptionCount: 2,
+  prescriptionCount: 2,
   followUpLabel: 'Blood pressure review · 8 Dec',
   dataSource: 'development-fixture',
 };

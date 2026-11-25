@@ -74,7 +74,7 @@ export default function RegisterScreen() {
         </Text>
       </Pressable>
       {errors.acceptedTerms?.message ? <Text style={{ color: colors.danger, fontSize: 12, marginBottom: 10 }}>{errors.acceptedTerms.message}</Text> : null}
-      <DevelopmentNotice>Verification only counts after the shared server confirms your code.</DevelopmentNotice>
+      <DevelopmentNotice>In local development, the API returns a test code. Real deployments need a configured email delivery provider.</DevelopmentNotice>
       <PrimaryButton label="Continue to verification" loading={isSubmitting} onPress={() => onSubmit()} style={{ marginTop: 12 }} />
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 18 }}>
         <Text style={{ color: colors.muted, fontSize: 13 }}>Already registered?</Text>

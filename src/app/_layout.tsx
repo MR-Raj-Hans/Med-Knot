@@ -5,8 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { loadAccessToken, clearAccessToken } from '@/services/sessionStorage';
+import { clearAccessToken } from '@/services/sessionStorage';
 import { isBackendConfigured } from '@/services/apiClient';
+import { authService } from '@/services/authService';
 import { useSessionStore } from '@/store/sessionStore';
 import { colors } from '@/theme/tokens';
 
@@ -23,19 +24,20 @@ export default function RootLayout() {
 
   useEffect(() => {
     let mounted = true;
-    void loadAccessToken()
-      .then(async (token) => {
-        if (!mounted || !token) return;
+    void (async () => {
+      try {
         if (!isBackendConfigured) {
           await clearAccessToken();
           return;
         }
-        setSession({ accessToken: token, patientName: 'there', mode: 'backend' });
-      })
-      .catch(() => undefined)
-      .finally(() => {
+        const restored = await authService.restoreSession();
+        if (mounted && restored) setSession(restored);
+      } catch {
+        await clearAccessToken();
+      } finally {
         if (mounted) setAuthReady(true);
-      });
+      }
+    })();
     return () => { mounted = false; };
   }, [setAuthReady, setSession]);
 

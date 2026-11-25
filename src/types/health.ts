@@ -11,7 +11,7 @@ export type AppointmentSummary = {
 export type HomeSummary = {
   patientName: string;
   nextAppointment: AppointmentSummary | null;
-  activePrescriptionCount: number;
+  prescriptionCount: number;
   followUpLabel: string | null;
   dataSource: 'development-fixture' | 'api';
 };

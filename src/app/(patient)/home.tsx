@@ -9,6 +9,7 @@ import { colors, radii, shadows } from '@/theme/tokens';
 
 const quickActions = [
   { icon: 'search' as const, label: 'Find a doctor', path: '/appointments' as const },
+  { icon: 'map-pin' as const, label: 'Nearby hospitals', path: '/hospitals' as const },
   { icon: 'activity' as const, label: 'AI Health', path: '/ai-health' as const },
   { icon: 'file-text' as const, label: 'Health records', path: '/health' as const },
 ];
@@ -24,7 +25,7 @@ export default function PatientHomeScreen() {
   const session = useSessionStore((state) => state.session);
   const profile = useSessionStore((state) => state.profile);
   const { data, isLoading, isError, refetch } = useQuery({ queryKey: ['patient', 'home'], queryFn: getHomeSummary });
-  const name = session?.patientName && session.patientName !== 'there' ? session.patientName.split(' ')[0] : data?.patientName ?? 'there';
+  const name = data?.dataSource === 'api' ? data.patientName.split(' ')[0] : session?.patientName && session.patientName !== 'there' ? session.patientName.split(' ')[0] : data?.patientName ?? 'there';
   const appointment = data?.nextAppointment;
 
   return (
@@ -40,7 +41,7 @@ export default function PatientHomeScreen() {
         </View>
       </View>
 
-      {session?.mode === 'development' ? <DevelopmentNotice>Development preview · appointment details below are synthetic sample data.</DevelopmentNotice> : null}
+      {data?.dataSource === 'development-fixture' ? <DevelopmentNotice>Development preview · appointment details below are synthetic sample data.</DevelopmentNotice> : null}
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
         <Feather name="sun" size={14} color={colors.teal} />
@@ -85,9 +86,9 @@ export default function PatientHomeScreen() {
       </View>
 
       <SectionHeading title="Quick actions" />
-      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 26 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginBottom: 26 }}>
         {quickActions.map((action) => (
-          <View key={action.label} style={{ flex: 1 }}>
+          <View key={action.label} style={{ width: '48%' }}>
             <Pressable accessibilityRole="button" onPress={() => router.push(action.path)} style={({ pressed }) => [{ backgroundColor: colors.paper, borderRadius: 18, borderWidth: 1, borderColor: colors.line, minHeight: 92, alignItems: 'flex-start', justifyContent: 'space-between', padding: 12 }, pressed && { opacity: 0.78 }]}>
               <View style={{ width: 31, height: 31, borderRadius: 11, backgroundColor: action.icon === 'activity' ? colors.limePale : colors.tealPale, alignItems: 'center', justifyContent: 'center' }}>
                 <Feather name={action.icon} color={action.icon === 'activity' ? colors.blueDeep : colors.teal} size={15} />
@@ -102,8 +103,8 @@ export default function PatientHomeScreen() {
       <View style={{ flexDirection: 'row', gap: 11, marginBottom: 17 }}>
         <Panel style={{ flex: 1, padding: 15 }}>
           <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: colors.tealPale, alignItems: 'center', justifyContent: 'center' }}><Feather name="file-text" size={15} color={colors.teal} /></View>
-          <Text style={{ color: colors.ink, fontSize: 21, fontWeight: '700', marginTop: 13 }}>{data?.activePrescriptionCount ?? '—'}</Text>
-          <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2 }}>Active prescriptions</Text>
+          <Text style={{ color: colors.ink, fontSize: 21, fontWeight: '700', marginTop: 13 }}>{data?.prescriptionCount ?? '—'}</Text>
+          <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2 }}>Prescriptions shared</Text>
         </Panel>
         <Panel style={{ flex: 1, padding: 15 }}>
           <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: colors.limePale, alignItems: 'center', justifyContent: 'center' }}><Feather name="repeat" size={15} color={colors.blueDeep} /></View>

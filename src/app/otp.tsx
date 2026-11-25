@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 import { AuthTopBar, DevelopmentNotice, InlineAlert, PrimaryButton, ScreenShell } from '@/components/ui';
 import { authService } from '@/services/authService';
+import { isBackendConfigured } from '@/services/apiClient';
 import { useSessionStore } from '@/store/sessionStore';
 import { colors } from '@/theme/tokens';
 
@@ -98,7 +99,7 @@ export default function OtpScreen() {
         />
       </View>
       <Text style={{ alignSelf: 'center', color: colors.blue, fontSize: 12, fontWeight: '700', marginBottom: 18 }}>Enter the code using your number keyboard.</Text>
-      {pending.mode === 'development' ? <DevelopmentNotice>Development preview code: {pending.demoCode}. It does not represent server verification.</DevelopmentNotice> : null}
+      {pending.mode === 'development' ? <DevelopmentNotice>{isBackendConfigured ? `Local server verification code: ${pending.demoCode}. This code is stored only for this development server.` : `Development preview code: ${pending.demoCode}. It does not represent server verification.`}</DevelopmentNotice> : null}
       <PrimaryButton label="Verify and continue" loading={busy} onPress={handleVerify} style={{ marginTop: 10 }} />
       <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, marginTop: 23 }}>
         <Text style={{ color: colors.muted, fontSize: 13 }}>Didn&apos;t receive it?</Text>
